@@ -35,7 +35,7 @@ interface IUniswapV2Pair {
 }
 
 contract UniConverterLiquidity is ProxyOwnable, SafeMath, LiquidityStorage {
-    function updateConverter(address _converter)
+    function updateConverter(address payable _converter)
         public
         onlyOwner()
         returns (bool)
@@ -54,21 +54,21 @@ contract UniConverterLiquidity is ProxyOwnable, SafeMath, LiquidityStorage {
     }
 
     // convert base to main token. baseTokenAmount = BNB, mainTokenAmount = JNTR
-    function convertBase(uint baseTokenAmount, address to) internal pure returns(uint amountOut) {
+    function convertBase(uint baseTokenAmount, address payable to) internal returns(uint amountOut) {
         amountOut = getReturnAmount(baseTokenAmount, 0);
         IUniswapV2Pair(converter).swap.value(baseTokenAmount)(0, amountOut, to, new bytes(0));
         lastReserveBalance = converter.balance;
     }    
 
     // convert main to base token. baseTokenAmount = BNB, mainTokenAmount = JNTR
-    function convertMain(uint mainTokenAmount, address payable to) internal pure returns(uint amountOut) {
+    function convertMain(uint mainTokenAmount, address payable to) internal returns(uint amountOut) {
         amountOut = getReturnAmount(0, mainTokenAmount);
         IUniswapV2Pair(converter).swap(amountOut, 0, to, new bytes(0));
         lastReserveBalance = converter.balance;
     }
 
     // return amount if we convert base or main token. baseTokenAmount = BNB, mainTokenAmount = JNTR
-    function getReturnAmount(uint baseTokenAmount, uint mainTokenAmount) internal pure returns(uint amountOut) {
+    function getReturnAmount(uint baseTokenAmount, uint mainTokenAmount) internal view returns(uint amountOut) {
         uint reserveIn;
         uint reserveOut;
         uint amountIn;
@@ -87,9 +87,9 @@ contract UniConverterLiquidity is ProxyOwnable, SafeMath, LiquidityStorage {
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
         require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(1000);  //No fee. 997 - with fee
-        uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = reserveIn.mul(1000).add(amountInWithFee);
+        uint amountInWithFee = safeMul(amountIn,1000);  //No fee. 997 - with fee
+        uint numerator = safeMul(amountInWithFee,reserveOut);
+        uint denominator = safeAdd(safeMul(reserveIn,1000),amountInWithFee);
         amountOut = numerator / denominator;
     }
 
@@ -97,9 +97,9 @@ contract UniConverterLiquidity is ProxyOwnable, SafeMath, LiquidityStorage {
     function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal pure returns (uint amountIn) {
         require(amountOut > 0, 'UniswapV2Library: INSUFFICIENT_OUTPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
-        uint numerator = reserveIn.mul(amountOut).mul(1000);
-        uint denominator = reserveOut.sub(amountOut).mul(1000);  //No fee. 997 -  with fee
-        amountIn = (numerator / denominator).add(1);
+        uint numerator = safeMul(safeMul(reserveIn,amountOut),1000);
+        uint denominator = safeMul(safeSub(reserveOut,amountOut),1000);  //No fee. 997 -  with fee
+        amountIn = safeAdd((numerator / denominator),1);
     }    
 }
 
@@ -756,7 +756,7 @@ contract Liquidity is
             vaultAddress,
             _mainTokenBalance
         );
-        
+
         lastReserveBalance = converter.balance;
         return (_baseTokenBalance, _mainTokenBalance);
     }
